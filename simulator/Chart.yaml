@@ -1,36 +1,58 @@
-import ca.uhn.fhir.context.FhirContext;
-import org.hl7.fhir.instance.model.api.IBaseBundle;
-import org.hl7.fhir.instance.model.api.IBaseResource;
-import org.hl7.fhir.r4.model.Bundle;
-import org.hl7.fhir.r4.model.Observation;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.functions.AggregateFunction;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.time.Time;
 
-public class FhirDataParser {
-    public static void main(String[] args) {
-        String fhirBundleJson = "{...}"; // Your FHIR Bundle JSON here
+import java.util.ArrayList;
+import java.util.List;
 
-        // Create an instance of FhirContext
-        FhirContext fhirContext = FhirContext.forR4();
+public class WindowedAPICallExample {
+    public static void main(String[] args) throws Exception {
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        // Parse the FHIR Bundle JSON
-        IBaseBundle bundle = fhirContext.newJsonParser().parseResource(fhirBundleJson);
+        // Configure KafkaSource and create DataStream
+        KafkaSource<FetalDataModel> source = KafkaSource.<FetalDataModel>builder()
+                .setBootstrapServers("172.28.168.255:9092")
+                .setTopics("input")
+                .build();
 
-        if (bundle instanceof Bundle) {
-            Bundle fhirBundle = (Bundle) bundle;
+        DataStream<FetalDataModel> streamInput = env.fromSource(source,
+                WatermarkStrategy.<FetalDataModel>forMonotonousTimestamps().withTimestampAssigner((event, timestamp) -> event.getTimestamp()),
+                "Kafka Data source");
 
-            // Extract the MDCX_HEART_RATE_PFC_FHR1 data
-            for (Bundle.BundleEntryComponent entry : fhirBundle.getEntry()) {
-                IBaseResource resource = entry.getResource();
-                if (resource instanceof Observation) {
-                    Observation observation = (Observation) resource;
-                    for (Observation.ObservationComponentComponent component : observation.getComponent()) {
-                        String codeDisplay = component.getCode().getCodingFirstRep().getDisplay();
-                        if (codeDisplay.equals("MDCX_HEART_RATE_PFC_FHR1")) {
-                            String data = component.getValueSampledData().getData();
-                            System.out.println("MDCX_HEART_RATE_PFC_FHR1 Data: " + data);
-                        }
+        // Apply window and aggregate function
+        DataStream<Object> windowedStream = streamInput
+                .keyBy(FetalDataModel::getSessionId)
+                .window(TumblingEventTimeWindows.of(Time.seconds(10)))
+                .aggregate(new AggregateFunction<FetalDataModel, FetalDataModel, Object>() {
+                    @Override
+                    public FetalDataModel createAccumulator() {
+                        return new FetalDataModel(0);
                     }
-                }
-            }
-        }
+
+                    @Override
+                    public FetalDataModel add(FetalDataModel value, FetalDataModel accumulator) {
+                        // Add logic to accumulate the data
+                        return accumulator;
+                    }
+
+                    @Override
+                    public Object getResult(FetalDataModel accumulator) {
+                        // Add logic to process the accumulated data and make the API call
+                        // Here, I'm just returning the accumulator as an example
+                        return accumulator;
+                    }
+
+                    @Override
+                    public FetalDataModel merge(FetalDataModel a, FetalDataModel b) {
+                        // Add logic to merge accumulators (if applicable)
+                        return a;
+                    }
+                });
+
+        // Execute the job
+        env.execute("Windowed API Call Example");
     }
 }
