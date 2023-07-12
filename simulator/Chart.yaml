@@ -1,17 +1,35 @@
-// Parse the FHIR Bundle JSON
-        Gson gson = new Gson();
-        JsonObject bundle = gson.fromJson(fhirBundleJson, JsonObject.class);
+import ca.uhn.fhir.context.FhirContext;
+import org.hl7.fhir.instance.model.api.IBaseBundle;
+import org.hl7.fhir.instance.model.api.IBaseResource;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.Observation;
 
-        // Extract the MDCX_UTERINE_ACTIVITY_PFC data
-        JsonArray entries = bundle.getAsJsonArray("entry");
-        if (entries != null && entries.size() > 0) {
-            JsonObject firstEntry = entries.get(0).getAsJsonObject();
-            JsonObject resource = firstEntry.getAsJsonObject("resource");
-            JsonArray components = resource.getAsJsonArray("component");
-            if (components != null && components.size() > 0) {
-                JsonObject component = components.get(0).getAsJsonObject();
-                JsonObject valueSampledData = component.getAsJsonObject("valueSampledData");
-                String data = valueSampledData.get("data").getAsString();
-                System.out.println("MDCX_UTERINE_ACTIVITY_PFC data: " + data);
+public class FhirDataParser {
+    public static void main(String[] args) {
+        String fhirBundleJson = "{...}"; // Your FHIR Bundle JSON here
+
+        // Create an instance of FhirContext
+        FhirContext fhirContext = FhirContext.forR4();
+
+        // Parse the FHIR Bundle JSON
+        IBaseBundle bundle = fhirContext.newJsonParser().parseResource(fhirBundleJson);
+
+        if (bundle instanceof Bundle) {
+            Bundle fhirBundle = (Bundle) bundle;
+
+            // Extract the component data
+            for (Bundle.BundleEntryComponent entry : fhirBundle.getEntry()) {
+                IBaseResource resource = entry.getResource();
+                if (resource instanceof Observation) {
+                    Observation observation = (Observation) resource;
+                    for (Observation.ObservationComponentComponent component : observation.getComponent()) {
+                        String display = component.getCode().getCodingFirstRep().getDisplay();
+                        String data = component.getValueSampledData().getData();
+                        System.out.println("Component Display: " + display);
+                        System.out.println("Component Data: " + data);
+                    }
+                }
             }
         }
+    }
+}
