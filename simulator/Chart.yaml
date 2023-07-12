@@ -17,16 +17,17 @@ public class FhirDataParser {
         if (bundle instanceof Bundle) {
             Bundle fhirBundle = (Bundle) bundle;
 
-            // Extract the component data
+            // Extract the MDCX_HEART_RATE_PFC_FHR1 data
             for (Bundle.BundleEntryComponent entry : fhirBundle.getEntry()) {
                 IBaseResource resource = entry.getResource();
                 if (resource instanceof Observation) {
                     Observation observation = (Observation) resource;
                     for (Observation.ObservationComponentComponent component : observation.getComponent()) {
-                        String display = component.getCode().getCodingFirstRep().getDisplay();
-                        String data = component.getValueSampledData().getData();
-                        System.out.println("Component Display: " + display);
-                        System.out.println("Component Data: " + data);
+                        String codeDisplay = component.getCode().getCodingFirstRep().getDisplay();
+                        if (codeDisplay.equals("MDCX_HEART_RATE_PFC_FHR1")) {
+                            String data = component.getValueSampledData().getData();
+                            System.out.println("MDCX_HEART_RATE_PFC_FHR1 Data: " + data);
+                        }
                     }
                 }
             }
